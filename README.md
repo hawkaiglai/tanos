@@ -12,6 +12,7 @@ A from-scratch x86-64 microkernel in Rust, demonstrating isolated userspace proc
 - **Ring 3 userspace**: loads ELF binaries from an initrd, sets up a GDT (user segments + TSS), and runs processes in ring 3 via `iretq`.
 - **Synchronous IPC**: cross-address-space message passing (call/receive/reply rendezvous) between isolated processes.
 - **Fault isolation + reincarnation**: when a ring-3 process crashes, the kernel kills *only* that process and restarts it from its image. Other processes and the kernel survive.
+- **Userspace driver pattern**: an optional demo runs a console "driver" as an isolated ring-3 server that a separate ring-3 client drives over IPC, one byte per round-trip — the microkernel way of doing what a monolithic kernel does in-kernel. See [docs/CONSOLE_DRIVER_DEMO.md](tanos/docs/CONSOLE_DRIVER_DEMO.md).
 
 ## Build & boot (verified working)
 

@@ -9,6 +9,11 @@ license = "MIT OR Apache-2.0"
 name = "init"
 path = "src/main.rs"
 
+[features]
+# Build the userspace virtual-console driver demo instead of the default
+# fault-isolation/reincarnation demo. See src/main.rs.
+console_demo = []
+
 [dependencies]
 libmicro = { path = "../libmicro" }
 kernel_types = { path = "../../core/types" }
