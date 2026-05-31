@@ -46,7 +46,18 @@ impl ProcessManager {
         
         self.processes[pid.as_u16() as usize] = Some(Box::new(process));
         self.scheduler.add_process(pid);
-        
+
+        // Bootstrap capabilities: every task may use the well-known console
+        // endpoint (0) for IPC (READ = receive, WRITE = send). It is granted no
+        // capability for any other endpoint, so the kernel will deny IPC on them
+        // (see dispatch_syscall's SYS_IPC_CALL/SYS_IPC_RECEIVE checks).
+        let _ = crate::capability::manager().create_capability(
+            crate::capability::ResourceType::Endpoint,
+            0,
+            crate::capability::Rights::READ | crate::capability::Rights::WRITE,
+            pid,
+        );
+
         Ok(pid)
     }
     
@@ -71,6 +82,9 @@ impl ProcessManager {
         let taken = self.processes.get_mut(pid.as_u16() as usize)?.take();
         if taken.is_some() {
             self.scheduler.remove_process(pid);
+            // Release the dead process's capabilities so a reused PID does not
+            // inherit them.
+            crate::capability::manager().remove_process_capabilities(pid);
         }
         taken
     }

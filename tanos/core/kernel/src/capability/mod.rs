@@ -451,19 +451,28 @@ impl CapabilityManager {
     
     /// Remove all capabilities for a process (on process death)
     pub fn remove_process_capabilities(&self, process: ProcessId) {
-        if let Some(cap_set) = self.process_capabilities.lock().remove(&process) {
+        let cap_set = match self.process_capabilities.lock().remove(&process) {
+            Some(set) => set,
+            None => return,
+        };
+
+        // Collect the ids first, then remove them from the global store under a
+        // short-lived lock, and only AFTER releasing it revoke any derived
+        // capabilities. revoke_derived_capabilities re-locks `capabilities`, and
+        // spin::Mutex is NOT reentrant, so holding that lock across the call
+        // would deadlock.
+        let ids: Vec<CapabilityId> = cap_set.list().into_iter().map(|c| c.id).collect();
+        {
             let mut global_caps = self.capabilities.lock();
-            
-            // Remove all capabilities from global store
-            for capability in cap_set.list() {
-                global_caps.remove(&capability.id);
-                
-                // Revoke derived capabilities
-                self.revoke_derived_capabilities(capability.id);
+            for id in &ids {
+                global_caps.remove(id);
             }
-            
-            crate::debug!("Removed all capabilities for process {}", process);
         }
+        for id in ids {
+            self.revoke_derived_capabilities(id);
+        }
+
+        crate::debug!("Removed all capabilities for process {}", process);
     }
 }
 
@@ -479,7 +488,7 @@ pub enum CapabilityError {
 /// Initialize capability subsystem
 pub fn init() {
     CAPABILITY_MANAGER.call_once(|| CapabilityManager::new());
-    crate::info!("Capability subsystem initialized");
+    crate::info!("Capability subsystem initialized (IPC endpoint access enforced)");
 }
 
 /// Get capability manager

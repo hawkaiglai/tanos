@@ -485,8 +485,40 @@ fn dispatch_syscall(frame: &InterruptFrame) -> u64 {
             }
             0
         }
-        SYS_IPC_CALL => crate::process::ipc_call(frame, frame.rdi, frame.rsi),
-        SYS_IPC_RECEIVE => crate::process::ipc_receive(frame, frame.rdi),
+        SYS_IPC_CALL => {
+            // Capability enforcement: sending on an endpoint requires a WRITE
+            // (send) capability for that endpoint. Denied callers get an error
+            // and the IPC is never performed.
+            let pid = crate::process::get_current_process().unwrap_or(crate::KERNEL_PID);
+            let ep = frame.rdi;
+            if crate::capability::manager().has_endpoint_access(
+                pid, crate::EndpointId::new_unchecked(ep as u32), crate::capability::Rights::WRITE)
+            {
+                crate::process::ipc_call(frame, ep, frame.rsi)
+            } else {
+                crate::warn!(
+                    "capability: PID {} DENIED ipc_call on endpoint {} (no send capability)",
+                    pid.as_u16(), ep
+                );
+                SYS_ERR | 3 // PermissionDenied
+            }
+        }
+        SYS_IPC_RECEIVE => {
+            // Receiving on an endpoint requires a READ (receive) capability.
+            let pid = crate::process::get_current_process().unwrap_or(crate::KERNEL_PID);
+            let ep = frame.rdi;
+            if crate::capability::manager().has_endpoint_access(
+                pid, crate::EndpointId::new_unchecked(ep as u32), crate::capability::Rights::READ)
+            {
+                crate::process::ipc_receive(frame, ep)
+            } else {
+                crate::warn!(
+                    "capability: PID {} DENIED ipc_receive on endpoint {} (no receive capability)",
+                    pid.as_u16(), ep
+                );
+                SYS_ERR | 3 // PermissionDenied
+            }
+        }
         SYS_IPC_REPLY => crate::process::ipc_reply(frame, frame.rdi),
         SYS_IPC_REPLY_RECV => crate::process::ipc_reply_recv(frame, frame.rdi, frame.rsi),
         SYS_REPORT => {

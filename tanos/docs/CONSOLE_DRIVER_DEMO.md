@@ -53,12 +53,22 @@ console-driver (PID 1): ready, serving bytes over IPC
 console-driver (PID 1): --- begin client output ---
 console-client (PID 2): sending a line through the userspace driver
 Hello from a ring-3 client, rendered by a ring-3 console driver via IPC!
+WARN ... capability: PID 2 DENIED ipc_call on endpoint 99 (no send capability)
+console-client (PID 2): correctly DENIED IPC on unauthorized endpoint 99 -- capabilities enforced
 console-driver (PID 1): --- end of stream, exiting ---
 console-client (PID 2): line sent, exiting
 ```
 
 The line between the `begin`/`end` markers was produced one byte at a time by
 the client, each byte handed to the driver over IPC and emitted by the driver.
+
+The demo also exercises **capability enforcement**: every process is granted a
+capability for the well-known console endpoint (0) at creation, so the client's
+calls on endpoint 0 succeed — but when it deliberately attempts an IPC call on
+endpoint 99 (which it holds no capability for), the kernel denies it. This is
+the microkernel access-control model: IPC on an endpoint requires a capability
+for that endpoint (READ to receive, WRITE to send), checked in the kernel's
+`int 0x80` dispatch (`core/kernel/src/interrupt/mod.rs`).
 
 ## How it maps to the code
 

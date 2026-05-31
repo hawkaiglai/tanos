@@ -152,8 +152,24 @@ fn console_client() -> ! {
     let line = b"Hello from a ring-3 client, rendered by a ring-3 console driver via IPC!\n";
     for &b in line.iter() {
         // Each call blocks until the driver has emitted the byte and replied.
+        // Allowed: this process holds a WRITE capability for CONSOLE_EP (0).
         unsafe { syscall::syscall2(SYS_IPC_CALL, CONSOLE_EP, b as u64); }
     }
+
+    // Capability enforcement check: this process was granted a capability for
+    // endpoint 0 only, NOT for endpoint 99. The kernel must deny this call.
+    const UNAUTHORIZED_EP: u64 = 99;
+    let result = unsafe { syscall::syscall2(SYS_IPC_CALL, UNAUTHORIZED_EP, b'X' as u64) };
+    if result & 0x8000_0000_0000_0000 != 0 {
+        libmicro::debug_print(
+            "console-client (PID 2): correctly DENIED IPC on unauthorized endpoint 99 -- capabilities enforced\n",
+        );
+    } else {
+        libmicro::debug_print(
+            "console-client (PID 2): BUG -- unauthorized endpoint 99 was NOT denied!\n",
+        );
+    }
+
     // Tell the driver we are done.
     unsafe { syscall::syscall2(SYS_IPC_CALL, CONSOLE_EP, EOS); }
 

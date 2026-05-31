@@ -114,7 +114,7 @@ Every `int 0x80` syscall already saves the full register frame on a single, reus
 ## What's not done
 
 - Not seL4-competitive on IPC (see above; closing that gap requires PCID + register fastpath).
-- Capability-based security is largely stubbed.
+- Capability-based security is **enforced for IPC endpoints** (a process needs a READ/WRITE capability for an endpoint to receive/send on it; the kernel denies otherwise — see the console demo). The capability model also defines memory/IRQ/I/O-port/process resource types, but enforcement for those is not wired up yet.
 - Reincarnation is in-kernel for the demo; the pure design runs a userspace reincarnation server.
 - No formal verification yet.
 - Mostly memory-safe Rust. The load-bearing `unsafe` in the core path (paging, GDT/TSS, address-space teardown, boot/heap init, CR3 switches) now carries `SAFETY:` justifications; some peripheral modules still lack them.
