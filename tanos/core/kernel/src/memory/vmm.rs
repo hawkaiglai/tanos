@@ -137,6 +137,9 @@ impl VirtualMemoryManager {
         
         // Initialize page table
         let page_table_ptr = root_frame.start_address().as_u64() as *mut PageTable;
+        // SAFETY: root_frame was just allocated (unaliased) and lives in
+        // identity-mapped low RAM, so its physical address is a valid, uniquely
+        // owned, suitably-aligned pointer to a PageTable-sized region we may zero.
         unsafe {
             let page_table = &mut *page_table_ptr;
             page_table.zero();
@@ -152,6 +155,9 @@ impl VirtualMemoryManager {
         let root_frame = Frame::from_address(address_space.cr3());
         
         // Switch CR3 on x86_64
+        // SAFETY: `root_frame` is the PML4 of a fully-constructed address space
+        // that identity-maps the kernel (code, data, stack, heap) in its low
+        // region, so the kernel keeps executing correctly across the CR3 load.
         #[cfg(target_arch = "x86_64")]
         unsafe {
             core::arch::asm!(
@@ -164,6 +170,8 @@ impl VirtualMemoryManager {
     
     /// Get current page table physical address
     pub fn current_page_table_addr(&self) -> PhysAddr {
+        // SAFETY: reading CR3 has no memory or flag side effects; it just copies
+        // the current page-table base into a register.
         #[cfg(target_arch = "x86_64")]
         unsafe {
             let addr: u64;
@@ -199,6 +207,9 @@ impl VirtualMemoryManager {
     
     /// Flush TLB entries
     pub fn flush_tlb(&self, page: Option<super::page::Page>) {
+        // SAFETY: invlpg and reloading CR3 only invalidate cached TLB
+        // translations; they have no effect on Rust-visible memory state and are
+        // always safe to issue in ring 0.
         #[cfg(target_arch = "x86_64")]
         unsafe {
             if let Some(page) = page {

@@ -475,6 +475,12 @@ fn reap_and_resume(
             let before = crate::memory::with_memory_manager(|mm| mm.free_frames());
             // Make `cr3` active BEFORE dropping the corpse, so the page-table
             // frames we free are never the live address space.
+            // SAFETY: `cr3` is the PML4 of `target`, a live process whose address
+            // space identity-maps the kernel, so execution (code, the current
+            // kernel stack, the heap) continues correctly after the switch. We
+            // are running on a kernel stack in identity-mapped low RAM, which is
+            // mapped identically in `target`, so no stack/instruction pointer
+            // becomes invalid across the load.
             unsafe { core::arch::asm!("mov cr3, {}", in(reg) cr3, options(nostack, preserves_flags)); }
             drop(dead);
             let after = crate::memory::with_memory_manager(|mm| mm.free_frames());

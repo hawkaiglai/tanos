@@ -43,6 +43,10 @@ pub fn init() {
     let tss = TSS.call_once(|| {
         let mut tss = TaskStateSegment::new();
         // RSP0: top of the dedicated kernel stack (stacks grow down).
+        // SAFETY: addr_of! computes the address of the static without forming a
+        // reference to it, so there is no aliasing of the mutable static. The
+        // stack memory itself is only ever accessed by the CPU as RSP0 (and by
+        // kernel code running on that stack), never through this module again.
         let stack_top = unsafe {
             let base = core::ptr::addr_of!(RSP0_STACK) as u64;
             VirtAddr::new(base + RSP0_STACK_SIZE as u64)
@@ -61,6 +65,12 @@ pub fn init() {
     let gdt: &'static GlobalDescriptorTable = GDT.call_once(|| gdt);
     gdt.load();
 
+    // SAFETY: the GDT was just loaded above, and every selector here indexes a
+    // descriptor we appended to it: kernel_code/kernel_data are valid ring-0
+    // code/data segments, and tss_sel points at the TSS descriptor for the
+    // `tss` static (which outlives the program). Reloading CS/SS/DS/ES with
+    // matching selectors and loading the TSS is the required, once-only setup
+    // before any ring-3 entry; nothing depends on the old segment values.
     unsafe {
         CS::set_reg(kernel_code);
         SS::set_reg(kernel_data);

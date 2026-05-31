@@ -177,6 +177,10 @@ fn ensure_user_page(address_space: &mut AddressSpace, vaddr: u64)
     }
     let frame = memory::with_memory_manager(|mm| mm.allocate_frame())
         .ok_or(super::ProcessError::OutOfMemory)?;
+    // SAFETY: the frame was just handed out by the allocator, so it is unaliased
+    // and owned by this address space. It lives in low RAM (< 1GB), which is
+    // identity-mapped in every address space, so its physical address is a valid
+    // writable pointer here. We zero exactly one PAGE_SIZE-sized frame.
     unsafe {
         core::ptr::write_bytes(frame.start_address().as_u64() as *mut u8, 0, crate::PAGE_SIZE);
     }
@@ -198,6 +202,10 @@ fn write_user_byte(address_space: &AddressSpace, vaddr: u64, byte: u8)
     let page = memory::page::Page::from_address(VirtAddr::new_unchecked(vaddr & !0xFFF));
     let frame = address_space.translate(page).ok_or(super::ProcessError::OutOfMemory)?;
     let dst = (frame.start_address().as_u64() + (vaddr & 0xFFF)) as *mut u8;
+    // SAFETY: `frame` backs `page` in this address space (translate succeeded),
+    // so it is owned by the process being constructed. The frame is in
+    // identity-mapped low RAM, and `vaddr & 0xFFF` keeps the write within the
+    // frame's PAGE_SIZE bounds, so `dst` is a valid in-bounds writable pointer.
     unsafe { *dst = byte; }
     Ok(())
 }

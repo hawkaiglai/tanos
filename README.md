@@ -116,7 +116,7 @@ Every `int 0x80` syscall already saves the full register frame on a single, reus
 - Capability-based security is largely stubbed.
 - Reincarnation is in-kernel for the demo; the pure design runs a userspace reincarnation server.
 - No formal verification yet.
-- Memory-safe Rust, but contains `unsafe` without extensive safety comments.
+- Mostly memory-safe Rust. The load-bearing `unsafe` in the core path (paging, GDT/TSS, address-space teardown, boot/heap init, CR3 switches) now carries `SAFETY:` justifications; some peripheral modules still lack them.
 
 ## Useful references
 

@@ -80,6 +80,10 @@ pub use driver::DriverState;
 #[no_mangle]
 pub extern "C" fn kernel_main(magic: u64, info_ptr: u64) -> ! {
     // Initialize bootstrap heap (must be first — alloc depends on this)
+    // SAFETY: kernel_main is the single entry point and runs once, so this is
+    // the only initializer of KERNEL_ALLOCATOR; BOOTSTRAP_HEAP is a static byte
+    // array of exactly BOOTSTRAP_HEAP_SIZE bytes, giving the allocator a valid,
+    // exclusively-owned region for the lifetime of the program.
     unsafe {
         let heap_start = BOOTSTRAP_HEAP.as_mut_ptr();
         KERNEL_ALLOCATOR.lock().init(heap_start, BOOTSTRAP_HEAP_SIZE);
@@ -93,6 +97,10 @@ pub extern "C" fn kernel_main(magic: u64, info_ptr: u64) -> ! {
     // Parse boot information from bootloader
     let boot_info = if magic as u32 == boot::multiboot::MULTIBOOT2_INFO_MAGIC && info_ptr != 0 {
         crate::info!("Parsing multiboot2 boot information...");
+        // SAFETY: we verified `magic` is the multiboot2 loader magic and
+        // `info_ptr` is non-null, so it points at the multiboot2 info structure
+        // GRUB placed in (identity-mapped) low memory, which parse_boot_info
+        // reads according to the multiboot2 layout.
         unsafe { boot::parse_boot_info(magic, info_ptr) }
     } else {
         crate::warn!("No valid multiboot2 info — using hardcoded memory map");
