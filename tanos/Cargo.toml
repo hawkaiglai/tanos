@@ -28,11 +28,10 @@ resolver = "2"
 [workspace.package]
 version = "3.0.0"
 edition = "2021"
-authors = ["TanOS Team <team@tanos.org>"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/tanos-os/tanos"
-homepage = "https://tanos.org"
-description = "TanOS - A modern microkernel operating system proving Tanenbaum's principles"
+authors = ["Stephen Ifeanyichukwu Chuks-Onah <stephen.find@proton.me>"]
+license = "MIT"
+repository = "https://github.com/hawkaiglai/tanos"
+description = "TanOS - a from-scratch x86-64 microkernel in Rust (isolation, IPC, fault isolation)"
 keywords = ["operating-system", "microkernel", "rust", "os", "kernel"]
 categories = ["os", "embedded", "no-std"]
 readme = "README.md"

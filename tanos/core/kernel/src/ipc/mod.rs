@@ -1,6 +1,11 @@
 //! Inter-Process Communication subsystem
-//! Provides fast, secure message passing between processes using endpoints.
-//! Optimized for sub-1000 cycle IPC latency.
+//! Provides message passing between processes using endpoints.
+//!
+//! NOTE: the live synchronous IPC used by the running demos is the register-
+//! message path in `process::mod` (ipc_call/ipc_receive/ipc_reply), reached via
+//! the int 0x80 gate; measured at ~3,800 cycles/round-trip under KVM
+//! (unoptimized — two CR3 reloads per round-trip). This endpoint-based subsystem
+//! is the older, more general scaffolding and is largely not on that hot path.
 
 pub mod endpoint;
 pub mod message;
