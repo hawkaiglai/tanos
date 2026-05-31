@@ -523,53 +523,10 @@ common_interrupt_handler:
     # Return from interrupt
     iretq
 
-# System call entry point (SYSCALL instruction)
-.global syscall_entry
-syscall_entry:
-    # SYSCALL instruction automatically:
-    # - Saves RIP to RCX
-    # - Saves RFLAGS to R11
-    # - Loads RIP from LSTAR MSR
-    # - Loads CS/SS from STAR MSR
-    # - Masks RFLAGS with SFMASK MSR
-    
-    # Switch to kernel stack
-    swapgs                          # Swap GS with kernel GS
-    mov %rsp, %gs:0                 # Save user stack
-    mov %gs:8, %rsp                 # Load kernel stack
-    
-    # Save user registers
-    push %rcx                       # User RIP
-    push %r11                       # User RFLAGS
-    push %rax                       # Syscall number
-    push %rdi                       # Arg 0
-    push %rsi                       # Arg 1
-    push %rdx                       # Arg 2
-    push %r10                       # Arg 3 (note: R10, not RCX)
-    push %r8                        # Arg 4
-    push %r9                        # Arg 5
-
-    # Call syscall handler
-    # Arguments are already in correct registers
-    call syscall_handler_wrapper
-
-    # Restore user registers
-    pop %r9
-    pop %r8
-    pop %r10
-    pop %rdx
-    pop %rsi
-    pop %rdi
-    add $8, %rsp                    # Skip syscall number
-    pop %r11                        # User RFLAGS
-    pop %rcx                        # User RIP
-    
-    # Switch back to user stack
-    mov %gs:0, %rsp                 # Restore user stack
-    swapgs                          # Restore user GS
-    
-    # Return to user mode
-    sysretq
+# NOTE: TanOS uses the `int 0x80` IDT gate for syscalls (see syscall_int_asm),
+# NOT the `SYSCALL` instruction. The old SYSCALL-instruction entry path
+# (syscall_entry + swapgs/LSTAR/sysretq machinery) was never wired up — the
+# LSTAR MSR is never programmed — so it has been removed to avoid confusion.
 
 # Context switch function
 .global context_switch

@@ -91,34 +91,6 @@ pub fn init() {
     crate::debug::serial::println("System call interface initialized");
 }
 
-/// Syscall entry wrapper called from entry.S syscall_entry.
-/// User registers at call time: rax=syscall_num, rdi=arg0, rsi=arg1,
-/// rdx=arg2, r10=arg3, r8=arg4, r9=arg5.
-/// This naked function rearranges into SysV C calling convention and
-/// tail-calls syscall_handler.
-#[naked]
-#[no_mangle]
-pub unsafe extern "C" fn syscall_handler_wrapper() -> u64 {
-    core::arch::asm!(
-        // Rearrange: rdi=num, rsi=a0, rdx=a1, rcx=a2, r8=a3, r9=a4
-        // arg5 (original r9) is already pushed on stack by entry.S — but
-        // syscall_handler takes 7 args and the 7th would need to be on stack.
-        // For now we pass 6 via registers and ignore arg5 (unused currently).
-        "push r9",          // save arg5 as 7th C arg on stack
-        "mov r9, r8",       // r9 = arg4
-        "mov r8, r10",      // r8 = arg3
-        "mov rcx, rdx",     // rcx = arg2
-        "mov rdx, rsi",     // rdx = arg1
-        "mov rsi, rdi",     // rsi = arg0
-        "mov rdi, rax",     // rdi = syscall_num
-        "call {handler}",
-        "add rsp, 8",       // pop arg5
-        "ret",
-        handler = sym syscall_handler,
-        options(noreturn)
-    );
-}
-
 /// Main system call handler
 #[no_mangle]
 pub extern "C" fn syscall_handler(
