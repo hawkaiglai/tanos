@@ -528,75 +528,11 @@ common_interrupt_handler:
 # (syscall_entry + swapgs/LSTAR/sysretq machinery) was never wired up — the
 # LSTAR MSR is never programmed — so it has been removed to avoid confusion.
 
-# Context switch function
-.global context_switch
-context_switch:
-    # RDI = old context pointer
-    # RSI = new context pointer
-    
-    # Save old context
-    mov %rax, 0(%rdi)
-    mov %rbx, 8(%rdi)
-    mov %rcx, 16(%rdi)
-    mov %rdx, 24(%rdi)
-    mov %rsi, 32(%rdi)
-    mov %r8, 64(%rdi)
-    mov %r9, 72(%rdi)
-    mov %r10, 80(%rdi)
-    mov %r11, 88(%rdi)
-    mov %r12, 96(%rdi)
-    mov %r13, 104(%rdi)
-    mov %r14, 112(%rdi)
-    mov %r15, 120(%rdi)
-    mov %rbp, 40(%rdi)
-    mov %rsp, 48(%rdi)
-    
-    # Save RIP (return address)
-    mov (%rsp), %rax
-    mov %rax, 56(%rdi)
-    
-    # Save segment registers
-    mov %cs, %ax
-    mov %ax, 128(%rdi)
-    mov %ds, %ax
-    mov %ax, 130(%rdi)
-    mov %es, %ax
-    mov %ax, 132(%rdi)
-    mov %fs, %ax
-    mov %ax, 134(%rdi)
-    mov %gs, %ax
-    mov %ax, 136(%rdi)
-    mov %ss, %ax
-    mov %ax, 138(%rdi)
-    
-    # Save CR3 (page table)
-    mov %cr3, %rax
-    mov %rax, 144(%rdi)
-    
-    # Load new context
-    mov 144(%rsi), %rax
-    mov %rax, %cr3                  # Switch page table
-    
-    mov 0(%rsi), %rax
-    mov 8(%rsi), %rbx
-    mov 16(%rsi), %rcx
-    mov 24(%rsi), %rdx
-    mov 32(%rsi), %rdi              # Note: this overwrites old context pointer
-    mov 64(%rsi), %r8
-    mov 72(%rsi), %r9
-    mov 80(%rsi), %r10
-    mov 88(%rsi), %r11
-    mov 96(%rsi), %r12
-    mov 104(%rsi), %r13
-    mov 112(%rsi), %r14
-    mov 120(%rsi), %r15
-    mov 40(%rsi), %rbp
-    mov 48(%rsi), %rsp
-    
-    # Jump to new RIP
-    push 56(%rsi)
-    mov 32(%rsi), %rsi              # Restore RSI last
-    ret
+# NOTE: an old register-by-register `context_switch` routine lived here. It was
+# never called — context switching is done in Rust by saving/restoring the full
+# InterruptFrame in the PCB and using `resume_user` (see interrupt::resume_user
+# and process::schedule_yield). Its struct offsets had also drifted out of sync
+# with the Rust Context type, so it was removed.
 
 # Atomic operations
 .global atomic_add
