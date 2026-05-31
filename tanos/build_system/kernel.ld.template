@@ -1,0 +1,184 @@
+/* TanOS Kernel Linker Script Template */
+ENTRY(_start)
+
+OUTPUT_FORMAT({{OUTPUT_FORMAT}})
+OUTPUT_ARCH({{OUTPUT_ARCH}})
+
+MEMORY
+{
+    RAM : ORIGIN = {{BASE_ADDRESS}}, LENGTH = 256M
+}
+
+/* Provide symbols for kernel code */
+PROVIDE(_kernel_base = {{BASE_ADDRESS}});
+PROVIDE(_stack_size = {{STACK_SIZE}});
+PROVIDE(_heap_size = {{HEAP_SIZE}});
+
+SECTIONS
+{
+    . = {{BASE_ADDRESS}};
+
+    /* Kernel text section - executable code */
+    .text ALIGN(4K) : {
+        _text_start = .;
+        
+        /* Boot code must be first */
+        KEEP(*(.text.boot))
+        KEEP(*(.text.start))
+        
+        /* Main kernel code */
+        *(.text .text.*)
+        *(.gnu.linkonce.t.*)
+        
+        /* Ensure alignment for page protection */
+        . = ALIGN(4K);
+        _text_end = .;
+    } > RAM
+
+    /* Read-only data section */
+    .rodata ALIGN(4K) : {
+        _rodata_start = .;
+        
+        /* String literals and constants */
+        *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        *(.gnu.linkonce.r.*)
+        
+        /* Exception handling tables (for future C++ support) */
+        *(.eh_frame_hdr)
+        *(.eh_frame)
+        
+        . = ALIGN(4K);
+        _rodata_end = .;
+    } > RAM
+
+    /* Initialized data section */
+    .data ALIGN(4K) : {
+        _data_start = .;
+        
+        /* Global and static variables */
+        *(.data .data.*)
+        *(.sdata .sdata.*)
+        *(.gnu.linkonce.d.*)
+        
+        /* Global offset table (for position-independent code) */
+        *(.got .got.*)
+        *(.got.plt)
+        
+        . = ALIGN(4K);
+        _data_end = .;
+    } > RAM
+
+    /* Uninitialized data section */
+    .bss ALIGN(4K) : {
+        _bss_start = .;
+        
+        /* Zero-initialized variables */
+        *(.bss .bss.*)
+        *(.sbss .sbss.*)
+        *(.gnu.linkonce.b.*)
+        *(COMMON)
+        
+        . = ALIGN(4K);
+        _bss_end = .;
+    } > RAM
+
+    /* Kernel heap section (optional) */
+    .heap ALIGN(4K) : {
+        _heap_start = .;
+        . += {{HEAP_SIZE}};
+        _heap_end = .;
+    } > RAM
+
+    /* Kernel stack section */
+    .stack ALIGN(4K) : {
+        _stack_bottom = .;
+        . += {{STACK_SIZE}};
+        _stack_top = .;
+    } > RAM
+
+    /* Per-CPU data section (for SMP support) */
+    .percpu ALIGN(4K) : {
+        _percpu_start = .;
+        *(.percpu .percpu.*)
+        . = ALIGN(4K);
+        _percpu_end = .;
+    } > RAM
+
+    /* Kernel end marker */
+    _kernel_end = .;
+    _kernel_size = _kernel_end - _kernel_base;
+
+    /* Ensure kernel doesn't exceed size limits */
+    ASSERT(_kernel_size <= 0x10000, "Kernel too large (max 64KB)")
+
+    /* Thread-local storage (for future threading support) */
+    .tdata : {
+        _tdata_start = .;
+        *(.tdata .tdata.*)
+        _tdata_end = .;
+    } > RAM
+
+    .tbss : {
+        _tbss_start = .;
+        *(.tbss .tbss.*)
+        _tbss_end = .;
+    } > RAM
+
+    /* Constructor/destructor tables */
+    .init_array : {
+        _init_array_start = .;
+        KEEP(*(SORT(.init_array.*)))
+        KEEP(*(.init_array))
+        _init_array_end = .;
+    } > RAM
+
+    .fini_array : {
+        _fini_array_start = .;
+        KEEP(*(SORT(.fini_array.*)))
+        KEEP(*(.fini_array))
+        _fini_array_end = .;
+    } > RAM
+
+    /* Debug information (keep for development builds) */
+    .debug_info     0 : { *(.debug_info .gnu.linkonce.wi.*) }
+    .debug_abbrev   0 : { *(.debug_abbrev) }
+    .debug_line     0 : { *(.debug_line .debug_line.*) }
+    .debug_frame    0 : { *(.debug_frame) }
+    .debug_str      0 : { *(.debug_str) }
+    .debug_loc      0 : { *(.debug_loc) }
+    .debug_ranges   0 : { *(.debug_ranges) }
+    .debug_macinfo  0 : { *(.debug_macinfo) }
+    .debug_pubtypes 0 : { *(.debug_pubtypes) }
+    .debug_pubnames 0 : { *(.debug_pubnames) }
+    .debug_aranges  0 : { *(.debug_aranges) }
+
+    /* Discard unnecessary sections */
+    /DISCARD/ : {
+        *(.note*)
+        *(.comment)
+        *(.interp)
+        *(.hash)
+        *(.dynsym)
+        *(.dynstr)
+        *(.dynamic)
+        *(.rel*)
+        *(.plt)
+    }
+}
+
+/* Provide convenient symbols for kernel code */
+PROVIDE(__text_start = _text_start);
+PROVIDE(__text_end = _text_end);
+PROVIDE(__rodata_start = _rodata_start);
+PROVIDE(__rodata_end = _rodata_end);
+PROVIDE(__data_start = _data_start);
+PROVIDE(__data_end = _data_end);
+PROVIDE(__bss_start = _bss_start);
+PROVIDE(__bss_end = _bss_end);
+PROVIDE(__heap_start = _heap_start);
+PROVIDE(__heap_end = _heap_end);
+PROVIDE(__stack_bottom = _stack_bottom);
+PROVIDE(__stack_top = _stack_top);
+PROVIDE(__kernel_start = _kernel_base);
+PROVIDE(__kernel_end = _kernel_end);

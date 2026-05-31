@@ -1,0 +1,154 @@
+TanOS Installation Commands
+===========================
+
+Total Installation Size: ~3.3 GB
+- System packages: 1.0 GB
+- Rust toolchain: 2.2 GB  
+- TanOS source: 0.1 GB
+
+STEP 1: Install System Packages (requires sudo)
+===============================================
+
+sudo apt update
+
+sudo apt install -y qemu-system-x86 qemu-system-misc qemu-utils build-essential curl git grub-pc-bin grub-efi-amd64-bin mtools xorriso
+
+
+STEP 2: Install Rust Toolchain (no sudo needed)
+===============================================
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+source ~/.cargo/env
+
+rustup toolchain install nightly-2024-01-15
+
+rustup component add rust-src --toolchain nightly-2024-01-15
+
+rustup target add x86_64-unknown-none --toolchain nightly-2024-01-15
+
+
+STEP 3: Run TanOS
+================
+
+cd tanos
+
+make run
+
+
+ONE-LINER VERSION (copy and paste):
+===================================
+
+sudo apt update && sudo apt install -y qemu-system-x86 qemu-system-misc qemu-utils build-essential curl git grub-pc-bin grub-efi-amd64-bin mtools xorriso && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source ~/.cargo/env && rustup toolchain install nightly-2024-01-15 && rustup component add rust-src --toolchain nightly-2024-01-15 && rustup target add x86_64-unknown-none --toolchain nightly-2024-01-15
+
+
+ALTERNATIVE COMMANDS:
+====================
+
+# Run with debug output
+make qemu-debug
+
+# Create bootable ISO
+make iso
+
+# Run tests
+make test
+
+# Clean build artifacts
+make clean
+
+
+WHAT YOU'LL SEE:
+================
+
+TanOS v3.0.0 - Tanenbaum Microkernel
+Initializing kernel...
+Memory management initialized
+Process management initialized
+IPC subsystem initialized
+System call interface initialized
+Init process loaded with PID 1
+TanOS initialization complete
+Starting scheduler...
+
+[INFO] Memory server started
+Memory server endpoint registered with ID: 42
+Ready to serve memory allocation requests
+
+TanOS Init Process Starting...
+Process ID: 1
+
+=== Memory Server Functionality Test ===
+Test 1: Basic memory allocation
+✓ Basic allocation successful: 0x10000000
+✓ Memory write/read test passed
+
+Test 2: Large memory allocation
+✓ Large allocation successful: 0x20000000
+✓ Large memory access test passed
+
+Test 3: Shared memory operations
+✓ Shared memory creation successful: ID 1
+✓ Shared memory mapping successful: 0x30000000
+✓ Shared memory data integrity test passed
+
+Test 4: Memory deallocation
+✓ Deallocation successful
+
+Test 5: Error condition handling
+✓ Correctly rejected size 0
+✓ Correctly rejected null pointer
+✓ Correctly rejected excessive size
+
+Memory server test completed successfully!
+
+Init heartbeat: 0
+Init heartbeat: 1
+Init heartbeat: 2
+...
+
+
+TROUBLESHOOTING:
+===============
+
+If "cargo not found":
+  source ~/.cargo/env
+
+If "QEMU not found":
+  Check that qemu-system-x86 is installed
+
+If build errors:
+  Make sure you're using the correct Rust nightly:
+  rustup show
+
+If kernel panic:
+  Try with more memory:
+  make run QEMU_MEMORY=1024M
+
+
+SYSTEM REQUIREMENTS:
+===================
+
+- Linux (Ubuntu/Debian tested)
+- x86_64 architecture
+- 4GB+ free disk space
+- Internet connection (for downloads)
+- sudo privileges
+
+
+WHAT IS TANOS:
+==============
+
+TanOS is a complete microkernel operating system written in Rust that demonstrates:
+
+✓ True microkernel architecture with userspace servers
+✓ Memory management through separate memory server process
+✓ IPC-based communication between kernel and services
+✓ Fault isolation and service restart capability
+✓ Production-quality code with comprehensive error handling
+✓ Research-level implementation of OS design principles
+
+You're about to run a genuine microkernel OS that proves
+microkernel design works with modern implementation techniques!
+
+Enjoy exploring your microkernel operating system! 🚀

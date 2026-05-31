@@ -1,0 +1,19 @@
+[package]
+name = "process_server"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+kernel_types = { workspace = true }
+syscall_abi = { workspace = true }
+libmicro = { workspace = true }
+spin = { workspace = true }
+bitflags = { workspace = true }
+
+[profile.userspace]
+inherits = "release"
+panic = "abort"
+lto = "thin"
+opt-level = 2

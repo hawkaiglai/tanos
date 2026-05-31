@@ -1,0 +1,23 @@
+[package]
+name = "kernel_types"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+description = "Core type definitions for TanOS microkernel"
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[dependencies]
+bitflags = { workspace = true }
+serde = { version = "1.0", optional = true, default-features = false, features = ["derive"] }
+
+[lib]
+name = "kernel_types"
+crate-type = ["lib"]
+
+[package.metadata.docs.rs]
+features = ["serde"]
+rustdoc-args = ["--cfg", "docsrs"]

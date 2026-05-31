@@ -1,0 +1,20 @@
+[toolchain]
+channel = "nightly-2024-01-15"
+components = [
+    "cargo",
+    "clippy", 
+    "rustfmt",
+    "rust-src",
+    "rust-analyzer",
+    "llvm-tools"
+]
+targets = [
+    "x86_64-unknown-none",
+    "riscv64gc-unknown-none-elf",
+    "x86_64-unknown-linux-gnu"
+]
+profile = "minimal"
+
+[env]
+RUSTFLAGS = "-Z macro-backtrace"
+CARGO_UNSTABLE_SPARSE_REGISTRY = "true"

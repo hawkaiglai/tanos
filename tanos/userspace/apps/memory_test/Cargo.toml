@@ -1,0 +1,17 @@
+[package]
+name = "memory_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libmicro = { path = "../../libmicro" }
+kernel_types = { path = "../../../core/types" }
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"
+opt-level = 2

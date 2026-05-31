@@ -1,0 +1,8 @@
+# Build all bare-metal (x86_64-unknown-none) crates with the static relocation
+# model. This is correct for both the kernel (linked at a fixed 0x100000) and
+# userspace (linked at a fixed 1GB): it removes PIE/GOT indirection, so
+# cross-crate calls are direct and need no runtime relocation processing.
+# Without this, userspace binaries call libmicro functions through zeroed GOT
+# entries and jump to address 0.
+[target.x86_64-unknown-none]
+rustflags = ["-C", "relocation-model=static"]

@@ -1,0 +1,29 @@
+[package]
+name = "build_system"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+description = "Build system utilities for TanOS microkernel"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+anyhow = "1.0"
+walkdir = "2.4"
+regex = "1.10"
+tempfile = "3.8"
+which = "4.4"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+
+[[bin]]
+name = "qemu_runner"
+path = "src/bin/qemu_runner.rs"
+
+[[bin]]
+name = "linker_gen"
+path = "src/bin/linker_gen.rs"

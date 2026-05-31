@@ -1,0 +1,20 @@
+[package]
+name = "syscall_abi"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+description = "System call ABI definitions for TanOS microkernel"
+repository = "https://github.com/tanos-team/tanos"
+
+[lib]
+name = "syscall_abi"
+crate-type = ["lib"]
+
+[features]
+default = []
+x86_64 = []
+riscv64 = []
+
+[dependencies]
+# No external dependencies - keep ABI minimal

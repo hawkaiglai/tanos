@@ -1,0 +1,250 @@
+/* TanOS Userspace Linker Script Template */
+ENTRY(_start)
+
+OUTPUT_FORMAT({{OUTPUT_FORMAT}})
+OUTPUT_ARCH({{OUTPUT_ARCH}})
+
+MEMORY
+{
+    RAM : ORIGIN = {{BASE_ADDRESS}}, LENGTH = 64M
+}
+
+/* Provide symbols for userspace code */
+PROVIDE(_base_address = {{BASE_ADDRESS}});
+PROVIDE(_stack_size = {{STACK_SIZE}});
+
+SECTIONS
+{
+    . = {{BASE_ADDRESS}};
+
+    /* Program headers for ELF loader */
+    .interp : {
+        *(.interp)
+    } > RAM
+
+    .note.gnu.build-id : {
+        *(.note.gnu.build-id)
+    } > RAM
+
+    /* Program text section */
+    .text : {
+        _text_start = .;
+        
+        /* Entry point must be first */
+        KEEP(*(.text.start))
+        KEEP(*(.text.entry))
+        
+        /* Main program code */
+        *(.text .text.*)
+        *(.gnu.linkonce.t.*)
+        
+        /* Procedure linkage table */
+        *(.plt)
+        *(.plt.*)
+        
+        . = ALIGN(16);
+        _text_end = .;
+    } > RAM
+
+    /* Read-only data section */
+    .rodata : {
+        _rodata_start = .;
+        
+        /* String literals and constants */
+        *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        *(.gnu.linkonce.r.*)
+        
+        /* Exception handling information */
+        *(.eh_frame_hdr)
+        KEEP(*(.eh_frame))
+        *(.gcc_except_table)
+        
+        . = ALIGN(16);
+        _rodata_end = .;
+    } > RAM
+
+    /* Initialized data section */
+    .data : {
+        _data_start = .;
+        
+        /* Global and static variables */
+        *(.data .data.*)
+        *(.sdata .sdata.*)
+        *(.gnu.linkonce.d.*)
+        
+        /* Constructor/destructor function pointers */
+        . = ALIGN(8);
+        __init_array_start = .;
+        KEEP(*(SORT(.init_array.*)))
+        KEEP(*(.init_array))
+        __init_array_end = .;
+        
+        __fini_array_start = .;
+        KEEP(*(SORT(.fini_array.*)))
+        KEEP(*(.fini_array))
+        __fini_array_end = .;
+        
+        . = ALIGN(16);
+        _data_end = .;
+    } > RAM
+
+    /* Global offset table and procedure linkage table */
+    .got : {
+        *(.got.plt)
+        *(.got)
+    } > RAM
+
+    /* Uninitialized data section */
+    .bss : {
+        _bss_start = .;
+        
+        /* Zero-initialized variables */
+        *(.bss .bss.*)
+        *(.sbss .sbss.*)
+        *(.gnu.linkonce.b.*)
+        *(COMMON)
+        
+        . = ALIGN(16);
+        _bss_end = .;
+    } > RAM
+
+    /* Thread-local storage */
+    .tdata : {
+        _tdata_start = .;
+        *(.tdata .tdata.*)
+        *(.gnu.linkonce.td.*)
+        _tdata_end = .;
+    } > RAM
+
+    .tbss : {
+        _tbss_start = .;
+        *(.tbss .tbss.*)
+        *(.gnu.linkonce.tb.*)
+        _tbss_end = .;
+    } > RAM
+
+    /* Dynamic linking sections */
+    .dynamic : {
+        *(.dynamic)
+    } > RAM
+
+    .hash : {
+        *(.hash)
+    } > RAM
+
+    .gnu.hash : {
+        *(.gnu.hash)
+    } > RAM
+
+    .dynsym : {
+        *(.dynsym)
+    } > RAM
+
+    .dynstr : {
+        *(.dynstr)
+    } > RAM
+
+    .gnu.version : {
+        *(.gnu.version)
+    } > RAM
+
+    .gnu.version_d : {
+        *(.gnu.version_d)
+    } > RAM
+
+    .gnu.version_r : {
+        *(.gnu.version_r)
+    } > RAM
+
+    .rel.dyn : {
+        *(.rel.init)
+        *(.rel.text .rel.text.* .rel.gnu.linkonce.t.*)
+        *(.rel.fini)
+        *(.rel.rodata .rel.rodata.* .rel.gnu.linkonce.r.*)
+        *(.rel.data.rel.ro .rel.data.rel.ro.* .rel.gnu.linkonce.d.rel.ro.*)
+        *(.rel.data .rel.data.* .rel.gnu.linkonce.d.*)
+        *(.rel.tdata .rel.tdata.* .rel.gnu.linkonce.td.*)
+        *(.rel.tbss .rel.tbss.* .rel.gnu.linkonce.tb.*)
+        *(.rel.ctors)
+        *(.rel.dtors)
+        *(.rel.got)
+        *(.rel.bss .rel.bss.* .rel.gnu.linkonce.b.*)
+    } > RAM
+
+    .rel.plt : {
+        *(.rel.plt)
+    } > RAM
+
+    /* End of program */
+    . = ALIGN(16);
+    _end = .;
+    PROVIDE(end = .);
+
+    /* Stack grows downward from high memory */
+    PROVIDE(_stack_bottom = 0x7FFF0000);
+    PROVIDE(_stack_top = 0x80000000);
+
+    /* Heap starts after program end */
+    PROVIDE(_heap_start = _end);
+    PROVIDE(_heap_end = _stack_bottom);
+
+    /* Program break for sbrk() */
+    PROVIDE(_program_break = _end);
+
+    /* Debug sections (preserved for debugging) */
+    .stab 0 : { *(.stab) }
+    .stabstr 0 : { *(.stabstr) }
+    .stab.excl 0 : { *(.stab.excl) }
+    .stab.exclstr 0 : { *(.stab.exclstr) }
+    .stab.index 0 : { *(.stab.index) }
+    .stab.indexstr 0 : { *(.stab.indexstr) }
+    .comment 0 : { *(.comment) }
+
+    /* DWARF debug sections */
+    .debug_aranges  0 : { *(.debug_aranges) }
+    .debug_pubnames 0 : { *(.debug_pubnames) }
+    .debug_info     0 : { *(.debug_info .gnu.linkonce.wi.*) }
+    .debug_abbrev   0 : { *(.debug_abbrev) }
+    .debug_line     0 : { *(.debug_line .debug_line.*) }
+    .debug_frame    0 : { *(.debug_frame) }
+    .debug_str      0 : { *(.debug_str) }
+    .debug_loc      0 : { *(.debug_loc) }
+    .debug_macinfo  0 : { *(.debug_macinfo) }
+    .debug_weaknames 0 : { *(.debug_weaknames) }
+    .debug_funcnames 0 : { *(.debug_funcnames) }
+    .debug_typenames 0 : { *(.debug_typenames) }
+    .debug_varnames  0 : { *(.debug_varnames) }
+    .debug_pubtypes 0 : { *(.debug_pubtypes) }
+    .debug_ranges   0 : { *(.debug_ranges) }
+    .debug_types    0 : { *(.debug_types) }
+    .debug_addr     0 : { *(.debug_addr) }
+    .debug_line_str 0 : { *(.debug_line_str) }
+    .debug_loclists 0 : { *(.debug_loclists) }
+    .debug_macro    0 : { *(.debug_macro) }
+    .debug_names    0 : { *(.debug_names) }
+    .debug_rnglists 0 : { *(.debug_rnglists) }
+    .debug_str_offsets 0 : { *(.debug_str_offsets) }
+    .debug_sup      0 : { *(.debug_sup) }
+
+    /* GNU build attributes */
+    .gnu.attributes 0 : { KEEP (*(.gnu.attributes)) }
+
+    /* Discard unwanted sections */
+    /DISCARD/ : {
+        *(.note.GNU-stack)
+        *(.gnu_debuglink)
+        *(.gnu.lto_*)
+    }
+}
+
+/* Convenient aliases for C code */
+PROVIDE(__executable_start = {{BASE_ADDRESS}});
+PROVIDE(__etext = _text_end);
+PROVIDE(_etext = _text_end);
+PROVIDE(etext = _text_end);
+PROVIDE(__edata = _data_end);
+PROVIDE(_edata = _data_end);
+PROVIDE(edata = _data_end);
+PROVIDE(__end = _end);
+PROVIDE(_end = _end);

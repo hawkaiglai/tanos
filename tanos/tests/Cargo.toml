@@ -1,0 +1,15 @@
+[package]
+name = "tanos_tests"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+kernel_types = { path = "../core/types" }
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = { workspace = true }
+serial_test = { workspace = true }

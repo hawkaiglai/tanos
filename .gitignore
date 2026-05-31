@@ -1,0 +1,33 @@
+# Rust build artifacts (match at any depth)
+target/
+**/target/
+
+# ISO / boot image build outputs (keep grub.cfg, ignore binaries)
+build/iso/boot/kernel
+build/iso/boot/initrd
+*.iso
+*.o
+*.a
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Logs / scratch
+*.log
+/tmp/
+
+# Internal planning / AI session notes (not for public repo)
+.claude/
+.claude-plan.md
+SSOT*.txt
+SSOT*.md
+*SSOT*
+*session*.txt
+SESSION_SUMMARY.md

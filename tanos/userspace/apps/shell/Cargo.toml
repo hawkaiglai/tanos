@@ -1,0 +1,14 @@
+[package]
+name = "shell"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "shell"
+path = "src/main.rs"
+
+[dependencies]
+libmicro = { path = "../../libmicro" }
+kernel_types = { path = "../../../core/types" }

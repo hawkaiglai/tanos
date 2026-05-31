@@ -1,0 +1,20 @@
+[package]
+name = "libmicro"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+description = "Userspace library for TanOS microkernel"
+
+[lib]
+name = "libmicro"
+crate-type = ["lib"]
+
+[dependencies]
+kernel_types = { path = "../../core/types" }
+syscall_abi = { path = "../../core/syscall_abi" }
+spin = { workspace = true }
+bitflags = { workspace = true }
+
+[features]
+default = []

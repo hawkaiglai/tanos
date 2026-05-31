@@ -1,0 +1,39 @@
+[package]
+name = "kernel"
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+linked_list_allocator = { workspace = true }
+kernel_types = { path = "../types", version = "=3.0.0" }
+syscall_abi = { path = "../syscall_abi", version = "=3.0.0" }
+spin = { workspace = true }
+bitflags = { workspace = true }
+x86_64 = { workspace = true }
+volatile = { version = "=0.5.4", default-features = false }
+
+[build-dependencies]
+cc = "1.0"
+
+[features]
+default = ["x86_64"]
+x86_64 = []
+riscv = []
+
+[profile.kernel]
+inherits = "release"
+panic = "abort"
+lto = true
+opt-level = "z"
+strip = true
+codegen-units = 1
+overflow-checks = false
+debug-assertions = false
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

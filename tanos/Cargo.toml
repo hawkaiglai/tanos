@@ -1,0 +1,114 @@
+[workspace]
+members = [
+    "core/kernel",
+    "core/types",
+    "core/syscall_abi",
+    "userspace/libmicro",
+    "userspace/init",
+    "userspace/drivers/keyboard",
+    "userspace/drivers/vga",
+    "userspace/drivers/storage",
+    "userspace/drivers/network",
+    "userspace/servers/process_server",
+    "userspace/servers/memory_server",
+    "userspace/servers/vfs",
+    "userspace/servers/network_stack",
+    "userspace/apps/shell",
+    "userspace/apps/memory_test",
+]
+# Host-only packages excluded from bare-metal workspace builds.
+# Build individually: cargo build --package build_system
+# (their deps require edition2024, unsupported by nightly-2024-01-15)
+exclude = [
+    "build_system",
+    "tests",
+]
+resolver = "2"
+
+[workspace.package]
+version = "3.0.0"
+edition = "2021"
+authors = ["TanOS Team <team@tanos.org>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/tanos-os/tanos"
+homepage = "https://tanos.org"
+description = "TanOS - A modern microkernel operating system proving Tanenbaum's principles"
+keywords = ["operating-system", "microkernel", "rust", "os", "kernel"]
+categories = ["os", "embedded", "no-std"]
+readme = "README.md"
+
+[workspace.dependencies]
+# Core TanOS crates
+kernel_types = { path = "core/types", version = "=3.0.0" }
+syscall_abi = { path = "core/syscall_abi", version = "=3.0.0" }
+libmicro = { path = "userspace/libmicro", version = "=3.0.0" }
+
+# External dependencies - minimal, audited set
+spin = { version = "0.9.4", default-features = false, features = ["mutex", "once", "spin_mutex", "rwlock"] }
+bitflags = { version = "=2.4.2", default-features = false }
+x86_64 = { version = "=0.15.1", default-features = false, features = ["instructions"] }
+riscv = { version = "=0.10.1", default-features = false }
+volatile = { version = "=0.5.4", default-features = false }
+linked_list_allocator = { version = "=0.10.5", default-features = false, features = ["const_mut_refs", "use_spin"] }
+uart_16550 = { version = "=0.3.0", default-features = false }
+pic8259 = { version = "=0.10.4", default-features = false }
+pc-keyboard = { version = "=0.7.0", default-features = false }
+bootloader_api = { version = "=0.11.7", default-features = false }
+
+# Development dependencies
+criterion = { version = "=0.5.1", features = ["html_reports"] }
+proptest = "=1.4.0"
+serial_test = "=3.0.0"
+
+# Build dependencies
+cc = "=1.0.83"
+
+[profile.kernel]
+inherits = "release"
+panic = "abort"
+lto = true
+opt-level = "z"  # Optimize for size
+strip = true
+codegen-units = 1
+debug = false
+overflow-checks = false
+
+[profile.userspace]
+inherits = "release"
+panic = "abort"
+lto = "thin"
+opt-level = 2
+codegen-units = 16
+debug = true
+overflow-checks = true
+
+[profile.test]
+inherits = "dev"
+opt-level = 0
+debug = true
+overflow-checks = true
+
+[profile.bench]
+inherits = "release"
+debug = true
+lto = true
+codegen-units = 1
+
+# Platform-specific configurations
+[workspace.metadata.cross.target.x86_64-unknown-none]
+runner = "qemu-system-x86_64"
+
+[workspace.metadata.cross.target.riscv64gc-unknown-none-elf]
+runner = "qemu-system-riscv64"
+
+# Documentation settings
+[workspace.metadata.docs.rs]
+targets = ["x86_64-unknown-none", "riscv64gc-unknown-none-elf"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
