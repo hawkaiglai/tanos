@@ -87,6 +87,8 @@ The `init` process shipped here runs the **fault-isolation demo** (above). The I
 
 **Result: ~3,800 cycles/round-trip** under QEMU KVM with real host TSC (`-accel kvm -cpu host`), with high run-to-run variance (~3,700–4,500). This is unoptimized: two full save/restore transitions, two CR3 reloads (TLB flush, no PCID), and spinlocks per round-trip.
 
+The realistic levers to close the gap toward sub-1000-cycle round-trips — PCID/tagged-TLB to avoid the flushes, a hand-tuned register fastpath, and finer-grained (or lock-free) data structures — are future work and **not implemented yet**; the number above is what the current, naive path actually costs.
+
 Always benchmark under KVM or bare metal; plain TCG `rdtsc` reports host time, not guest cycles, and is meaningless here.
 
 ## A note on AI assistance
@@ -110,6 +112,16 @@ Every `int 0x80` syscall already saves the full register frame on a single, reus
 1. **Stack overflow zeroed the heap**: `MemoryManager` embedded a `#[repr(align(4096))]` page table (4 KB aligned), overflowing the 16 KB kernel stack and zeroing the global allocator's metadata. Fix: `Box` the page table.
 2. **Userspace jumped to address 0**: PIE codegen routed cross-crate calls through zero-valued GOT entries. Fix: build with `relocation-model=static` (direct calls, no GOT).
 3. **Non-canonical stack pointer**: user stack top at 0x800000000000 (bit 47 set with high bits clear) caused #GP. Moved to 0xC0000000 (canonical).
+
+## Current limitations
+
+This is a demonstration kernel, not a general-purpose OS. Concretely:
+
+- **Cooperative scheduling only.** Processes reschedule by calling `yield`/IPC syscalls; the timer IRQ fires and is counted but does *not* preempt a running process. No priorities, no time slicing.
+- **Basic memory management.** A bitmap physical frame allocator and a linked-list kernel heap. No demand paging, swapping, copy-on-write, or slab/object allocators.
+- **Uniprocessor.** No SMP; one CPU, one kernel stack (safe only because the syscall/IRQ path never nests — see the context-switching design note).
+- **Address-space teardown assumes unshared mappings.** Frame reclamation on process death frees each mapped frame once; genuine shared mappings would need refcounting first (the allocator's bitmap guards against a double-free corrupting it, but not against freeing a still-shared frame too early).
+- **One global IPC rendezvous.** The live IPC models a single synchronous channel (endpoint argument is capability-checked but not yet used to route between multiple independent endpoints).
 
 ## What's not done
 
