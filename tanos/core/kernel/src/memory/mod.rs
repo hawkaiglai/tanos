@@ -59,6 +59,11 @@ impl MemoryManager {
     pub fn deallocate_frame(&mut self, frame: Frame) {
         self.frame_allocator.deallocate(frame);
     }
+
+    /// Number of currently-free physical frames (for diagnostics / leak checks).
+    pub fn free_frames(&self) -> usize {
+        self.frame_allocator.free_frames()
+    }
     
     pub fn allocate_contiguous_frames(&mut self, count: usize) -> Option<Vec<Frame>> {
         self.frame_allocator.allocate_contiguous_frames(count).ok()

@@ -62,6 +62,19 @@ impl ProcessManager {
             .map(|p| p.as_mut())
     }
     
+    /// Remove a process from the table (and the scheduler), returning its boxed
+    /// Process so the caller controls exactly when it is dropped — dropping it
+    /// reclaims its entire address space (see AddressSpace::drop). Used by the
+    /// death paths, which drop the corpse only after switching CR3 to another
+    /// process so the freed frames are never the active page tables.
+    fn take_process(&mut self, pid: ProcessId) -> Option<Box<process::Process>> {
+        let taken = self.processes.get_mut(pid.as_u16() as usize)?.take();
+        if taken.is_some() {
+            self.scheduler.remove_process(pid);
+        }
+        taken
+    }
+
     pub fn kill_process(&mut self, pid: ProcessId) -> core::result::Result<(), ProcessError> {
         if let Some(_process) = self.processes.get_mut(pid.as_u16() as usize).unwrap().take() {
             self.scheduler.remove_process(pid);
@@ -388,18 +401,22 @@ pub fn spawn_from_initrd(generation: u32) -> core::result::Result<ProcessId, Pro
 /// (Here reincarnation is driven in-kernel for the demo; the "pure" microkernel
 /// design would run a userspace reincarnation server that the kernel notifies.)
 pub fn fault_kill_current(vector: u8) -> ! {
-    let info = with_process_manager(|pm| {
-        let cur = pm.current_process?;
-        let gen = pm.get_process(cur).map(|p| p.generation).unwrap_or(0);
-        if let Some(p) = pm.get_process_mut(cur) {
-            p.state = process::ProcessState::Zombie;
+    // Remove the faulting process from the table immediately (so it is never
+    // scheduled again) but keep its Box alive in `dead` so we control when its
+    // frames are reclaimed — only after switching CR3 away from it.
+    let (dead, info) = with_process_manager(|pm| {
+        match pm.current_process {
+            Some(cur) => {
+                let gen = pm.get_process(cur).map(|p| p.generation).unwrap_or(0);
+                (pm.take_process(cur), Some((cur, gen)))
+            }
+            None => (None, None),
         }
-        Some((cur, gen))
     });
 
     let (cur, gen) = match info {
         Some(x) => x,
-        None => loop { unsafe { core::arch::asm!("hlt") }; },
+        None => { drop(dead); loop { unsafe { core::arch::asm!("hlt") }; } }
     };
 
     crate::error!(
@@ -407,60 +424,95 @@ pub fn fault_kill_current(vector: u8) -> ! {
         cur.as_u16(), gen, vector
     );
 
-    if gen < MAX_GENERATION {
+    // Decide what to resume. First choice — the MINIX-3 idea — reincarnate the
+    // crashed process from its image (up to MAX_GENERATION). Otherwise fall back
+    // to any other runnable process.
+    let target: Option<(crate::interrupt::InterruptFrame, u64)> = if gen < MAX_GENERATION {
         match spawn_from_initrd(gen + 1) {
             Ok(newpid) => {
                 crate::info!(
                     "reincarnation: restarting crashed PID {} as PID {} (generation {})",
                     cur.as_u16(), newpid.as_u16(), gen + 1
                 );
-                let (saved, cr3) = with_process_manager(|pm| {
+                Some(with_process_manager(|pm| {
                     pm.set_current_process(Some(newpid));
                     let p = pm.get_process_mut(newpid).unwrap();
                     p.state = process::ProcessState::Running;
                     (p.saved, p.address_space.cr3().as_u64())
-                });
-                unsafe { crate::interrupt::resume_user(&saved as *const _, cr3) }
+                }))
             }
-            Err(e) => crate::error!("reincarnation: respawn failed: {:?}", e),
+            Err(e) => { crate::error!("reincarnation: respawn failed: {:?}", e); None }
         }
     } else {
         crate::warn!(
             "reincarnation: PID {} hit restart limit (gen {}) — not restarting",
             cur.as_u16(), gen
         );
-    }
-
-    // Not reincarnating (limit reached or respawn failed): run another process.
-    exit_current(-(vector as i64) - 1)
-}
-
-/// Terminate the current process and switch to the next runnable one. If none
-/// remain, halts. Does not return.
-pub fn exit_current(code: i64) -> ! {
-    let next = with_process_manager(|pm| {
-        let cur = pm.current_process;
-        if let Some(cur) = cur {
-            if let Some(p) = pm.get_process_mut(cur) {
-                p.state = process::ProcessState::Zombie;
-            }
-            crate::info!("exit: PID {} (code={})", cur.as_u16(), code);
-        }
+        None
+    };
+    let target = target.or_else(|| with_process_manager(|pm| {
         let next_pid = pm.pick_next()?;
         pm.set_current_process(Some(next_pid));
         let p = pm.get_process_mut(next_pid)?;
         p.state = process::ProcessState::Running;
         Some((p.saved, p.address_space.cr3().as_u64()))
+    }));
+
+    reap_and_resume(dead, target, cur)
+}
+
+/// Switch to `target`'s address space, reclaim the dead process's frames (now
+/// that we are no longer executing in its address space), report how many were
+/// reclaimed, and resume `target`. If there is no target, reclaim and halt.
+/// Does not return.
+fn reap_and_resume(
+    dead: Option<Box<process::Process>>,
+    target: Option<(crate::interrupt::InterruptFrame, u64)>,
+    dead_pid: ProcessId,
+) -> ! {
+    match target {
+        Some((saved, cr3)) => {
+            let before = crate::memory::with_memory_manager(|mm| mm.free_frames());
+            // Make `cr3` active BEFORE dropping the corpse, so the page-table
+            // frames we free are never the live address space.
+            unsafe { core::arch::asm!("mov cr3, {}", in(reg) cr3, options(nostack, preserves_flags)); }
+            drop(dead);
+            let after = crate::memory::with_memory_manager(|mm| mm.free_frames());
+            crate::info!(
+                "reclaimed {} frames from dead PID {} (free frames {} -> {})",
+                after.saturating_sub(before), dead_pid.as_u16(), before, after
+            );
+            unsafe { crate::interrupt::resume_user(&saved as *const _, cr3) }
+        }
+        None => {
+            drop(dead);
+            crate::info!("All processes have exited. Halting.");
+            loop { unsafe { core::arch::asm!("hlt") }; }
+        }
+    }
+}
+
+/// Terminate the current process and switch to the next runnable one. If none
+/// remain, halts. Does not return.
+pub fn exit_current(code: i64) -> ! {
+    // Remove the exiting process from the table, holding its Box in `dead` so
+    // its frames are reclaimed only after we switch CR3 to the next process.
+    let (dead, dead_pid, next) = with_process_manager(|pm| {
+        let cur = pm.current_process;
+        let dead = cur.and_then(|c| pm.take_process(c));
+        if let Some(c) = cur {
+            crate::info!("exit: PID {} (code={})", c.as_u16(), code);
+        }
+        let next = pm.pick_next().map(|next_pid| {
+            pm.set_current_process(Some(next_pid));
+            let p = pm.get_process_mut(next_pid).unwrap();
+            p.state = process::ProcessState::Running;
+            (p.saved, p.address_space.cr3().as_u64())
+        });
+        (dead, cur.unwrap_or(crate::KERNEL_PID), next)
     });
 
-    if let Some((saved, cr3)) = next {
-        unsafe { crate::interrupt::resume_user(&saved as *const _, cr3) }
-    }
-
-    crate::info!("All processes have exited. Halting.");
-    loop {
-        unsafe { core::arch::asm!("hlt") };
-    }
+    reap_and_resume(dead, next, dead_pid)
 }
 
 pub fn get_current_process() -> Option<ProcessId> {

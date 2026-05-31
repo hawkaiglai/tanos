@@ -277,12 +277,83 @@ impl AddressSpace {
     }
 }
 
+impl AddressSpace {
+    /// Free a single frame given its physical base address.
+    fn free_frame(mm: &mut super::MemoryManager, phys: u64) {
+        mm.deallocate_frame(Frame::from_address(PhysAddr::new_unchecked(phys)));
+    }
+
+    /// Free a PT (4KB-leaf level): every present entry is a mapped user page
+    /// (an allocator frame), then the PT frame itself.
+    ///
+    /// SAFETY: `phys` must be a page-table frame reachable via the identity map.
+    unsafe fn free_pt(mm: &mut super::MemoryManager, phys: u64) {
+        let pt = table_at(phys);
+        for &e in pt.iter() {
+            if e & PTE_PRESENT != 0 {
+                Self::free_frame(mm, e & PTE_ADDR_MASK);
+            }
+        }
+        Self::free_frame(mm, phys);
+    }
+
+    /// Free a PD: 2MB huge-page entries are skipped (they alias existing RAM —
+    /// the kernel identity region — not allocator frames); non-huge entries are
+    /// PTs to recurse into. Then the PD frame itself.
+    ///
+    /// SAFETY: `phys` must be a page-table frame reachable via the identity map.
+    unsafe fn free_pd(mm: &mut super::MemoryManager, phys: u64) {
+        let pd = table_at(phys);
+        for &e in pd.iter() {
+            if e & PTE_PRESENT == 0 || e & PTE_HUGE != 0 {
+                continue;
+            }
+            Self::free_pt(mm, e & PTE_ADDR_MASK);
+        }
+        Self::free_frame(mm, phys);
+    }
+
+    /// Free a PDPT: every present entry is a PD (we never map 1GB huge pages),
+    /// then the PDPT frame itself.
+    ///
+    /// SAFETY: `phys` must be a page-table frame reachable via the identity map.
+    unsafe fn free_pdpt(mm: &mut super::MemoryManager, phys: u64) {
+        let pdpt = table_at(phys);
+        for &e in pdpt.iter() {
+            if e & PTE_PRESENT != 0 {
+                Self::free_pd(mm, e & PTE_ADDR_MASK);
+            }
+        }
+        Self::free_frame(mm, phys);
+    }
+}
+
 impl Drop for AddressSpace {
     fn drop(&mut self) {
-        // NOTE: only frees the top-level PML4 frame; intermediate tables and
-        // mapped frames are intentionally leaked for now (no process teardown
-        // path exercises this yet). Proper recursive free is a TODO.
-        let frame = Frame::from_address(self.cr3);
-        super::with_memory_manager(|mm| mm.deallocate_frame(frame));
+        // Recursively reclaim every frame this address space owns: all mapped
+        // user pages and ALL four levels of page-table frames (PML4/PDPT/PD/PT),
+        // including the private tables backing the kernel identity region.
+        //
+        // The identity region is mapped with 2MB huge pages that alias existing
+        // physical RAM (the kernel image, heap, all of low memory) rather than
+        // allocator frames, so their *targets* are skipped (see free_pd) — only
+        // the table frames mapping them are freed. The frame allocator's
+        // deallocate() also checks its bitmap first, so any frame that is
+        // somehow reached twice (e.g. an aliased mapping) is freed at most once.
+        //
+        // SAFETY: this runs while `self` is NOT the active CR3 (the death paths
+        // in process::mod switch CR3 immediately after dropping the process), so
+        // reclaiming its frames cannot pull tables out from under a live walk.
+        // All table frames are in the identity-mapped low region, so table_at is
+        // valid regardless of which address space is currently active.
+        super::with_memory_manager(|mm| unsafe {
+            let pml4 = table_at(self.cr3.as_u64());
+            for &e in pml4.iter() {
+                if e & PTE_PRESENT != 0 {
+                    Self::free_pdpt(mm, e & PTE_ADDR_MASK);
+                }
+            }
+            Self::free_frame(mm, self.cr3.as_u64());
+        });
     }
 }
