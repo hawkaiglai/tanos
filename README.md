@@ -2,7 +2,7 @@
 
 A from-scratch x86-64 microkernel in Rust, demonstrating isolated userspace processes, synchronous cross-address-space IPC, and automatic recovery from process crashes. Built to put Tanenbaum's microkernel principles on actual hardware (QEMU/KVM).
 
-**Author:** Stephen Ifeanyichukwu Chuks-Onah  
+**Author:** Stephen Chuks-Onah  
 **License:** MIT  
 **Status:** Verified working, reproducible.
 
