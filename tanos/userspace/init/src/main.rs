@@ -64,7 +64,11 @@ pub extern "C" fn _start(generation: u64) -> ! {
         let _ = generation;
         console_demo();
     }
-    #[cfg(not(feature = "console_demo"))]
+    #[cfg(feature = "ipc_crash_demo")]
+    {
+        ipc_crash_demo(generation);
+    }
+    #[cfg(not(any(feature = "console_demo", feature = "ipc_crash_demo")))]
     {
         reincarnation_demo(generation);
     }
@@ -175,4 +179,41 @@ fn console_client() -> ! {
 
     libmicro::debug_print("console-client (PID 2): line sent, exiting\n");
     syscall::exit(0);
+}
+
+// ─── Optional demo: IPC peer death (crash mid-request) ───────────────────────
+
+#[cfg(feature = "ipc_crash_demo")]
+fn ipc_crash_demo(generation: u64) -> ! {
+    // The reincarnated server comes back with a *new* PID (reincarnation doesn't
+    // preserve PIDs), so dispatch on generation first: any gen > 0 process here
+    // is the restarted server, which has nothing left to do.
+    if generation > 0 {
+        libmicro::debug_print("ipc-server: reincarnated; demo done, exiting\n");
+        syscall::exit(0);
+    }
+
+    let pid = syscall::getpid().as_u16();
+    if pid == 1 {
+        // Server, first life: receive one request, then crash *before* replying.
+        libmicro::debug_print("ipc-server (PID 1): waiting for a request\n");
+        let _req = unsafe { syscall::syscall1(SYS_IPC_RECEIVE, CONSOLE_EP) };
+        libmicro::debug_print("ipc-server (PID 1): got request, crashing before reply (ud2)!\n");
+        unsafe { asm!("ud2", options(noreturn)) }
+    } else {
+        // Client: call the server, which dies mid-request. Before the fix this
+        // call blocked forever; now the kernel wakes us with an error.
+        libmicro::debug_print("ipc-client (PID 2): calling server (which will crash mid-request)\n");
+        let result = unsafe { syscall::syscall2(SYS_IPC_CALL, CONSOLE_EP, 0x1234) };
+        if result & 0x8000_0000_0000_0000 != 0 {
+            libmicro::debug_print(
+                "ipc-client (PID 2): call returned an ERROR (server died) instead of hanging -- recovered!\n",
+            );
+        } else {
+            libmicro::debug_print(
+                "ipc-client (PID 2): call returned a normal reply (unexpected in this demo)\n",
+            );
+        }
+        syscall::exit(0);
+    }
 }

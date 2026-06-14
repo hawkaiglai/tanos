@@ -13,6 +13,9 @@ path = "src/main.rs"
 # Build the userspace virtual-console driver demo instead of the default
 # fault-isolation/reincarnation demo. See src/main.rs.
 console_demo = []
+# Build the IPC-peer-death demo: a client calls a server that crashes
+# mid-request; the kernel wakes the client with an error instead of hanging it.
+ipc_crash_demo = []
 
 [dependencies]
 libmicro = { path = "../libmicro" }

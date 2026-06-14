@@ -12,6 +12,7 @@ A from-scratch x86-64 microkernel in Rust, demonstrating isolated userspace proc
 - **Ring 3 userspace**: loads ELF binaries from an initrd, sets up a GDT (user segments + TSS), and runs processes in ring 3 via `iretq`.
 - **Synchronous IPC**: cross-address-space message passing (call/receive/reply rendezvous) between isolated processes.
 - **Fault isolation + reincarnation**: when a ring-3 process crashes, the kernel kills *only* that process and restarts it from its image. Other processes and the kernel survive.
+- **IPC fault recovery**: if a process crashes mid-request, any peer blocked waiting for its reply is woken with an error instead of hanging forever (build init with `--features ipc_crash_demo` to see it). The woken caller gets an error and must retry — the kernel does *not* yet transparently re-bind it to the reincarnated server (that's the remaining hard part; see Current limitations).
 - **Userspace driver pattern**: an optional demo runs a console "driver" as an isolated ring-3 server that a separate ring-3 client drives over IPC, one byte per round-trip — the microkernel way of doing what a monolithic kernel does in-kernel. See [docs/CONSOLE_DRIVER_DEMO.md](tanos/docs/CONSOLE_DRIVER_DEMO.md).
 
 ## Build & boot (verified working)
@@ -122,6 +123,7 @@ This is a demonstration kernel, not a general-purpose OS. Concretely:
 - **Uniprocessor.** No SMP; one CPU, one kernel stack (safe only because the syscall/IRQ path never nests — see the context-switching design note).
 - **Address-space teardown assumes unshared mappings.** Frame reclamation on process death frees each mapped frame once; genuine shared mappings would need refcounting first (the allocator's bitmap guards against a double-free corrupting it, but not against freeing a still-shared frame too early).
 - **One global IPC rendezvous.** The live IPC models a single synchronous channel (endpoint argument is capability-checked but not yet used to route between multiple independent endpoints).
+- **No transparent IPC re-binding across reincarnation.** When a server crashes, a peer blocked on it is woken with an error (so it no longer hangs), but it must retry; the kernel does not reconnect it to the restarted server, and the reincarnated process gets a new PID rather than inheriting the old service identity. Proper client re-binding is the MINIX-3 reincarnation-server problem and isn't done.
 
 ## What's not done
 

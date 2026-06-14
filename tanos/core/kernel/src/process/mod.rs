@@ -85,8 +85,39 @@ impl ProcessManager {
             // Release the dead process's capabilities so a reused PID does not
             // inherit them.
             crate::capability::manager().remove_process_capabilities(pid);
+            // Unblock any IPC peer that was waiting on this process, so a crash
+            // mid-IPC doesn't hang its partner forever.
+            self.ipc_handle_peer_death(pid);
         }
         taken
+    }
+
+    /// When a process dies, repair the IPC rendezvous so no peer is left blocked
+    /// on it: if the dead process was the one obligated to reply to a blocked
+    /// caller, wake that caller with an error; and clear any rendezvous slot the
+    /// dead process itself occupied.
+    fn ipc_handle_peer_death(&mut self, dead: ProcessId) {
+        let mut rdv = RENDEZVOUS.lock();
+        if rdv.receiver == Some(dead) {
+            rdv.receiver = None;
+        }
+        if rdv.in_service == Some(dead) {
+            // The server handling the outstanding call died before replying.
+            rdv.in_service = None;
+            if let Some(caller) = rdv.caller.take() {
+                if let Some(c) = self.get_process_mut(caller) {
+                    c.saved.rax = IPC_ERR_PEER_DIED;
+                    c.state = process::ProcessState::Ready;
+                    crate::warn!(
+                        "ipc: PID {} died mid-request; waking blocked caller PID {} with an error",
+                        dead.as_u16(), caller.as_u16()
+                    );
+                }
+            }
+        }
+        if rdv.caller == Some(dead) {
+            rdv.caller = None;
+        }
     }
 
     pub fn kill_process(&mut self, pid: ProcessId) -> core::result::Result<(), ProcessError> {
@@ -258,6 +289,11 @@ struct Rendezvous {
     receiver: Option<ProcessId>,
     /// A process blocked in `call`, waiting for a reply.
     caller: Option<ProcessId>,
+    /// The process that received the caller's message and is now obligated to
+    /// reply to it (the "server" currently handling the outstanding call). If
+    /// this process dies before replying, the blocked `caller` must be woken
+    /// with an error instead of hanging forever — see `ipc_handle_peer_death`.
+    in_service: Option<ProcessId>,
     /// A message sent by a caller before any receiver was ready.
     pending_msg: u64,
     has_pending: bool,
@@ -266,9 +302,14 @@ struct Rendezvous {
 static RENDEZVOUS: Mutex<Rendezvous> = Mutex::new(Rendezvous {
     receiver: None,
     caller: None,
+    in_service: None,
     pending_msg: 0,
     has_pending: false,
 });
+
+/// IPC error returned to a caller whose server died before replying (high bit
+/// set = error, matching libmicro's ERROR_MASK).
+const IPC_ERR_PEER_DIED: u64 = 0x8000_0000_0000_0000 | 9;
 
 /// `call`: send `msg` and block until a reply. Always switches away (the caller
 /// blocks in ReplyWait); resumes the server (fastpath) or the next runnable
@@ -285,6 +326,8 @@ pub fn ipc_call(frame: &crate::interrupt::InterruptFrame, _ep: u64, msg: u64) ->
 
         if let Some(server) = rdv.receiver.take() {
             // Fastpath: a receiver is already waiting — hand it the message.
+            // It now owes `cur` a reply.
+            rdv.in_service = Some(server);
             if let Some(s) = pm.get_process_mut(server) {
                 s.saved.rax = msg;
                 s.state = process::ProcessState::Running;
@@ -316,6 +359,7 @@ pub fn ipc_receive(frame: &crate::interrupt::InterruptFrame, _ep: u64) -> u64 {
             let mut rdv = RENDEZVOUS.lock();
             if rdv.has_pending {
                 rdv.has_pending = false;
+                rdv.in_service = Some(cur); // cur now owes the caller a reply
                 return Ok(rdv.pending_msg); // deliver immediately, keep running
             }
             if let Some(p) = pm.get_process_mut(cur) {
@@ -341,6 +385,7 @@ pub fn ipc_receive(frame: &crate::interrupt::InterruptFrame, _ep: u64) -> u64 {
 pub fn ipc_reply(_frame: &crate::interrupt::InterruptFrame, rval: u64) -> u64 {
     with_process_manager(|pm| {
         let mut rdv = RENDEZVOUS.lock();
+        rdv.in_service = None; // the reply discharges the obligation
         if let Some(caller) = rdv.caller.take() {
             if let Some(c) = pm.get_process_mut(caller) {
                 c.saved.rax = rval;
@@ -362,7 +407,10 @@ pub fn ipc_reply_recv(frame: &crate::interrupt::InterruptFrame, rval: u64, _ep: 
             let cur = pm.current_process.expect("ipc_reply_recv: no current process");
             let mut rdv = RENDEZVOUS.lock();
 
-            // 1. Reply to the caller currently awaiting it.
+            // 1. Reply to the caller currently awaiting it (discharges the
+            //    obligation; a new one is taken below if another message is
+            //    delivered).
+            rdv.in_service = None;
             if let Some(caller) = rdv.caller.take() {
                 if let Some(c) = pm.get_process_mut(caller) {
                     c.saved.rax = rval;
@@ -373,6 +421,7 @@ pub fn ipc_reply_recv(frame: &crate::interrupt::InterruptFrame, rval: u64, _ep: 
             // 2. Receive the next message (deliver if pending, else block).
             if rdv.has_pending {
                 rdv.has_pending = false;
+                rdv.in_service = Some(cur); // cur now owes the new caller a reply
                 return Ok(rdv.pending_msg);
             }
             if let Some(p) = pm.get_process_mut(cur) {
