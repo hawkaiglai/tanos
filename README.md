@@ -118,6 +118,8 @@ Every `int 0x80` syscall already saves the full register frame on a single, reus
 
 This is a demonstration kernel, not a general-purpose OS. Concretely:
 
+- **QEMU/KVM only — not tested on bare metal or other VMs.** It assumes a legacy PIC + PIT (no APIC/ACPI), serial-only output (no framebuffer), and the low-memory layout below. Expect it to need real work before it boots on physical hardware, VirtualBox, VMware, or Bochs.
+- **The kernel runs in the low half, identity-mapped — not higher-half.** It is linked at `0x100000` and identity-maps the low 1 GB. The conventional, correct design is a higher-half kernel (linked at ≥`0xFFFFFFFF80000000`, `-mcmodel=kernel`) cleanly separated from userspace; the current layout is a deliberate bring-up shortcut and a prerequisite to fix for robust bare-metal boot.
 - **Cooperative scheduling only.** Processes reschedule by calling `yield`/IPC syscalls; the timer IRQ fires and is counted but does *not* preempt a running process. No priorities, no time slicing.
 - **Basic memory management.** A bitmap physical frame allocator and a linked-list kernel heap. No demand paging, swapping, copy-on-write, or slab/object allocators.
 - **Uniprocessor.** No SMP; one CPU, one kernel stack (safe only because the syscall/IRQ path never nests — see the context-switching design note).
