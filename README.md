@@ -4,7 +4,7 @@ A from-scratch x86-64 microkernel in Rust, demonstrating isolated userspace proc
 
 **Author:** Stephen Chuks-Onah  
 **License:** MIT  
-**Status:** Verified working, reproducible.
+**Status:** Paused proof-of-concept — verified working and reproducible, but not under active development. It's a from-scratch learning/reference artifact, complete as a demonstration of the ideas below. Happy to pick it back up for a real use case or collaboration.
 
 ## What it demonstrates
 
