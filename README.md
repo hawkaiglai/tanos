@@ -1,6 +1,6 @@
 # TanOS: A Rust Microkernel
 
-A from-scratch x86-64 microkernel in Rust, demonstrating isolated userspace processes, synchronous cross-address-space IPC, and automatic recovery from process crashes. Built to put Tanenbaum's microkernel principles on actual hardware (QEMU/KVM).
+A from-scratch x86-64 microkernel in Rust, demonstrating isolated userspace processes, synchronous cross-address-space IPC, and fault isolation with restart of crashed processes. Built to put Tanenbaum's microkernel principles on actual hardware (QEMU/KVM).
 
 **Author:** Stephen Chuks-Onah  
 **License:** MIT  
@@ -11,7 +11,7 @@ A from-scratch x86-64 microkernel in Rust, demonstrating isolated userspace proc
 - **Real 4-level paging**: each process gets its own address space; the kernel identity-maps the low 1 GB so it survives CR3 switches.
 - **Ring 3 userspace**: loads ELF binaries from an initrd, sets up a GDT (user segments + TSS), and runs processes in ring 3 via `iretq`.
 - **Synchronous IPC**: cross-address-space message passing (call/receive/reply rendezvous) between isolated processes.
-- **Fault isolation + reincarnation**: when a ring-3 process crashes, the kernel kills *only* that process and restarts it from its image. Other processes and the kernel survive.
+- **Fault isolation + restart-on-crash**: when a ring-3 process crashes, the kernel kills *only* that process and can restart it from its image; the kernel and other processes keep running. This is restart-from-image (MINIX-3-inspired), **not** full "reincarnation" — clients are not transparently re-bound to the restarted process (see Current limitations). Earlier versions oversold this as "reincarnation"; corrected after osdev feedback.
 - **IPC fault recovery**: if a process crashes mid-request, any peer blocked waiting for its reply is woken with an error instead of hanging forever (build init with `--features ipc_crash_demo` to see it). The woken caller gets an error and must retry — the kernel does *not* yet transparently re-bind it to the reincarnated server (that's the remaining hard part; see Current limitations).
 - **Userspace driver pattern**: an optional demo runs a console "driver" as an isolated ring-3 server that a separate ring-3 client drives over IPC, one byte per round-trip — the microkernel way of doing what a monolithic kernel does in-kernel. See [docs/CONSOLE_DRIVER_DEMO.md](tanos/docs/CONSOLE_DRIVER_DEMO.md).
 
