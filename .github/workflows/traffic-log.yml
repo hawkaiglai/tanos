@@ -1,0 +1,80 @@
+# Weekly traffic logger
+#
+# GitHub only keeps the last 14 days of clone and view numbers. This workflow
+# copies them into a "traffic-data" branch every Monday, so the history keeps
+# growing instead of rolling off. Each run adds new days, corrects days that
+# were still in progress last time, and rebuilds a week-by-week report
+# (README.md on that branch).
+#
+# Files it uses (keep both on your default branch):
+#   scripts/log_traffic.py    does the work
+#   scripts/traffic_seed.csv  early history typed in from screenshots; only used
+#                             the first time, when the branch is created
+#
+# One-time setup:
+#   1. Create a token: GitHub > Settings > Developer settings > Personal access
+#      tokens > Fine-grained tokens > Generate new token.
+#        - Repository access: Only select repositories > this repo
+#        - Repository permissions: Administration = Read-only
+#        - Expiration: the longest it offers. When the token expires, runs fail
+#          (red X in the Actions tab) and you need to make a new one.
+#      A classic token with the "repo" scope also works. The built-in
+#      GITHUB_TOKEN has no Administration permission, so it can't read traffic.
+#   2. Save it as a repository secret named TRAFFIC_TOKEN:
+#      repo Settings > Secrets and variables > Actions > New repository secret.
+#   3. Run it once by hand: Actions tab > Log traffic > Run workflow. Then open
+#      the traffic-data branch on GitHub to read the report.
+#
+# Note: GitHub pauses scheduled workflows on public repos after 60 days without
+# repo activity. If that happens, re-enable it from the Actions tab.
+
+name: Log traffic
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC; the 14-day window leaves a week of slack if a run is missed
+  workflow_dispatch:
+
+permissions:
+  contents: write # to push the traffic-data branch
+
+concurrency:
+  group: traffic-log
+  cancel-in-progress: false
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Switch to the data branch (created on the first run)
+        run: |
+          mkdir -p "$RUNNER_TEMP/tl"
+          cp scripts/log_traffic.py scripts/traffic_seed.csv "$RUNNER_TEMP/tl/"
+          if git ls-remote --exit-code --heads origin traffic-data > /dev/null 2>&1; then
+            git fetch --depth=1 origin traffic-data
+            git checkout -B traffic-data FETCH_HEAD
+          else
+            git checkout --orphan traffic-data
+            git rm -rf --quiet .
+            cp "$RUNNER_TEMP/tl/traffic_seed.csv" traffic.csv
+          fi
+
+      - name: Fetch the latest numbers and rebuild the report
+        env:
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+        run: python3 "$RUNNER_TEMP/tl/log_traffic.py" --data-dir .
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "Traffic data for $(date -u +%F)"
+            git push origin traffic-data
+          fi
