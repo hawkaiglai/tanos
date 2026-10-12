@@ -1,24 +1,25 @@
 # Traffic log: hawkaiglai/tanos
 
-Updated 2026-10-05. 41 days logged, 2026-08-06 to 2026-10-04. Not logged: 2026-08-20 to 2026-09-07. 26 early days were copied from screenshots (see the source column).
+Updated 2026-10-12. 48 days logged, 2026-08-06 to 2026-10-11. Not logged: 2026-08-20 to 2026-09-07. 26 early days were copied from screenshots (see the source column).
 
 ## Trend
 
 One character per week, oldest first, starting with the week of 2026-08-03. Height is the average per logged day, scaled to the busiest week in each row; a dot means no data.
 
 ```
-Clones  ▂▁▁··▂▂▃█
-Views   █▁▂··▁▁▄▃
+Clones  ▂▁▁··▂▂▃█▃
+Views   █▁▂··▁▁▄▃▂
 ```
 
-- Last 28 days (2026-09-07 to 2026-10-04): 32 clones (1.19/day), 20 views (0.74/day), 27 of 28 days logged
-- Previous 28 days (2026-08-10 to 2026-09-06): 0 clones (0.00/day), 1 views (0.10/day), 10 of 28 days logged
-- All logged days: 33 clones, 40 views over 41 days
+- Last 28 days (2026-09-14 to 2026-10-11): 36 clones (1.29/day), 22 views (0.79/day), 28 of 28 days logged
+- Previous 28 days (2026-08-17 to 2026-09-13): 1 clones (0.11/day), 1 views (0.11/day), 9 of 28 days logged
+- All logged days: 38 clones, 42 views over 48 days
 
 ## Weekly totals
 
 | Week of | Days logged | Clones | Cloners† | Views | Visitors† |
 |---|---|---|---|---|---|
+| 2026-10-05 | 7/7 | 5 | 5 | 2 | 2 |
 | 2026-09-28 | 7/7 | 21 | 13 | 8 | 2 |
 | 2026-09-21 | 7/7 | 6 | 6 | 12 | 3 |
 | 2026-09-14 | 7/7 | 4 | 4 | 0 | 0 |
